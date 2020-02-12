@@ -64,7 +64,7 @@ service-identity==16.0.0
 simplejson==3.13.2
 six==1.13.0
 SQLAlchemy==1.3.12
--e git://github.com/kvesteri/sqlalchemy-utils.git@8d535bdc0e902f5154a8102263a1e9f67b183330#egg=SQLAlchemy_Utils
+sqlalchemy-utils==0.36.1
 ssh-import-id==5.7
 systemd-python==234
 Twisted==17.9.0
