@@ -7,6 +7,7 @@ from DatabaseLayer.UserModel import *
 from BuisnessLayer.ModulesDict import *
 from BuisnessLayer.Modules import * 
 from ApiLayer.Admin import *
+from functools import wraps
 
 
 import jwt, datetime
@@ -15,6 +16,17 @@ import jwt, datetime
 FlaskUUID(app)
 
 app.config['SECRET_KEY'] = 'EdrMedeso2020' 
+
+def token_required(f):
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        token = request.args.get('token')
+        try:
+            jwt.decode(token, app.config['SECRET_KEY'] )
+        except:
+            return jsonify({'error': 'Need a valid token to view this page'}), 401
+    return wrapper
+
 @app.route('/login', methods=['POST'])
 def get_token():
     request_data = request.get_json()
@@ -24,6 +36,7 @@ def get_token():
     match = User.username_password_match(username, password)
     
     if match:
+        app.logger.info('%s logged in successfully',username)
         expiration_date = datetime.datetime.utcnow() + datetime.timedelta(seconds=100)
         token = jwt.encode({'exp': expiration_date}, app.config['SECRET_KEY'], algorithm='HS256' )
         return token
