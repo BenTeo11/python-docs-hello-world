@@ -258,5 +258,5 @@ dmypy.json
 .pyre/
 
 # database
-DatabaseLayer/
-*.db
+# DatabaseLayer/
+**/.db
