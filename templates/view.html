@@ -1,0 +1,10 @@
+{% extends "layout.html" %}
+{% block title %}
+View all Users
+{% endblock %}
+{% block content %}
+    {% for item in values %}
+        <p>Name: {{item.Username}},Password: {{item.Password}}</p>
+    {% endfor %}    
+<p>Welcome, {{user}}</p>
+{% endblock %}

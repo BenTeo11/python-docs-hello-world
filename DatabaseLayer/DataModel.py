@@ -7,7 +7,7 @@ import json
 from DatabaseLayer.Settings import app
 #from DatabaseLayer.UserModel import *
 
-db = SQLAlchemy(app)
+db = SQLAlchemy()
 
 class Company(db.Model):
     __tablename_ = 'Company'

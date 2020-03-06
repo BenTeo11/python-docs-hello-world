@@ -1,0 +1,69 @@
+/* .message {
+    font-weight: 600;
+    color: blue;
+} */
+
+body {color:rgba(190, 26, 26, 0.667);} 
+/* .navbar {
+    background-color: lightslategray;
+    font-size: 1em;
+    font-family: 'Trebuchet MS', 'Lucida Sans Unicode', 'Lucida Grande', 'Lucida Sans', Arial, sans-serif;
+    color: white;
+    padding: 8px 5px 8px 5px;
+}
+
+.navbar a {
+    text-decoration: none;
+    color: inherit;
+}
+
+.navbar-brand {
+    font-size: 1.2em;
+    font-weight: 600;
+}
+
+.navbar-item {
+    font-variant: small-caps;
+    margin-left: 30px;
+}
+
+.body-content {
+    padding: 5px;
+    font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+} */
+
+
+
+/* .sidebar-nav  {
+    background-color: lightslategray;
+    font-size: 1em;
+    font-family: 'Trebuchet MS', 'Lucida Sans Unicode', 'Lucida Grande', 'Lucida Sans', Arial, sans-serif;
+    color: white;
+    padding: 8px 5px 8px 5px;
+}
+
+.sidebar-nav a {
+    text-decoration: none;
+    color: inherit;
+}
+
+.sidenav-brand {
+    font-size: 1.2em;
+    font-weight: 600;
+}
+
+.sidenav-item {
+    font-variant: small-caps;
+    margin-left: 30px;
+}
+
+.body-content {
+    padding: 5px;
+    font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.tab {position:absolute;left:150px; }
+
+.tab-2{
+	display:inline-block; width:TWO-TAB-WIDTH;
+} */

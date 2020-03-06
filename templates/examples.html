@@ -1,0 +1,31 @@
+{% extends "layout.html" %}
+{% block title %}
+Examples
+{% endblock %}
+{% block content %}
+<p>
+    <pre>
+    import requests
+    <font color="blue">&nbsp;&nbsp;#Setting base parameters!</font>
+    url_adr = "http://127.0.0.1:80001/"
+    headers = {'Content-Type': 'application/json'}
+    
+    <font color="blue">&nbsp;&nbsp;#First Get token. You need to provide username and password</font>
+    url = url_adr+'getToken'
+    payload = "{\"username\":\"testUser\",\"password\":\"password\"}"
+    response = requests.request("GET", url, headers=headers, data = payload)
+    
+    <font color="blue">&nbsp;&nbsp;#Save the token</font>
+    token = response.text
+    
+    <font color="blue">&nbsp;&nbsp;#Sending data to the module. You need to provide molule name and component ID with the data</font>
+    url = url_adr+'inputData'+'?token='+token
+    payload = "{\"componentId\": \"002c4b26-6322-4f81-bf82-60d7602d9904\",\"destinationModule\": \"SimpleMaths\",\"data\": {\"number1\": 12,\"number2\": 14}}"
+    response = requests.request("POST", url, headers=headers, data = payload)
+    
+    <font color="blue">&nbsp;&nbsp;#Getting the result</font>
+    url = url_adr+'GetData'+'?token='+token
+    response = requests.request("GET", url, headers=headers, data = payload)
+    </pre>
+</p>
+{% endblock %}

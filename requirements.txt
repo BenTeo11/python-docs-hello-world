@@ -5,3 +5,5 @@ pyodbc==4.0.30
 sqlalchemy-utils==0.36.1
 jsonschema==3.2.0 
 jwt==0.6.1
+pyjwt==1.5.3
+pymc3==3.8
