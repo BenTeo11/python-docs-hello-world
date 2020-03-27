@@ -245,10 +245,10 @@ class Result(db.Model):
         return [Result.json(data) for data in Result.query.all()] 
     
     def get_data_by_id(_componentId):
-        return Result.json(Result.query.filter_by(componentId=_componentId).first())    
+        return [Result.json(data) for data in Result.query.filter_by(componentId=_componentId).order_by(desc(Result.timeStamp)).all()]    
     
     def get_data_by_timestamp(_componentId, _timeStamp):
-        return Result.json(Result.query.filter_by(componentId=_componentId, timeStamp= _timeStamp).first())
+        return Result.json(Result.query.filter_by(componentId=_componentId, timeStamp= _timeStamp).all())
     
     def get_data_the_lastrows(counts,_componentId):       
         return [Result.json(data) for data in Result.query.filter_by(componentId=_componentId).order_by(desc(Result.timeStamp)).limit(counts).all()] 

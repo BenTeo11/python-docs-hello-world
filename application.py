@@ -15,6 +15,7 @@ from ApiLayer.Admin import *
 from functools import wraps
 
 import jwt,datetime
+import requests
 
 params = urllib.parse.quote_plus("Driver={ODBC Driver 17 for SQL Server};Server=tcp:apiservice.database.windows.net,1433;Database=ApiService;Uid=apiserviceAdmin;Pwd=BenTeo18062416;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30;")
 
@@ -34,19 +35,11 @@ def token_required(f):
     def wrapper(*args, **kwargs):
         token = request.args.get('token')
         try:
-            jwt.decode(token, app.config['SECRET_KEY'] )
+            jwt.decode(token, app.config['SECRET_KEY'])
+            return f(*args,**kwargs)
         except:
             return jsonify({'error': 'Need a valid token to view this page'}), 401
     return wrapper
-
-@app.route("/hello/")
-@app.route("/hello/<name>")
-def hello_there(name = None):
-    return render_template(
-        "hello_there.html",
-        name=name,
-        date=datetime.datetime.now()
-    )
     
 @app.route("/user")
 def user():
@@ -93,7 +86,7 @@ def get_token():
     
     if match:
         app.logger.info('%s logged in successfully',username)
-        expiration_date = datetime.datetime.utcnow() + datetime.timedelta(seconds=100)
+        expiration_date = datetime.datetime.utcnow() + datetime.timedelta(seconds=10000)
         token = jwt.encode({'exp': expiration_date}, app.config['SECRET_KEY'], algorithm='HS256' )
         return token
     else:
@@ -115,78 +108,84 @@ def about():
 
 @app.route("/examples/")
 def examples():
-    return render_template("examples.html")
+    if "user" in session:
+        return render_template("examples.html")
+    else:
+        flash("Please login to get access", "info") 
+        return redirect(url_for("login"))    
+    
 
 @app.route("/contact/")
 def contact():
-    return render_template("contact.html")
+    if "user" in session:
+        return render_template("contact.html")
+    else:
+        flash("Please login to get access", "info") 
+        return redirect(url_for("login"))  
 
 @app.route("/view/")
 def view():
-    return render_template("view.html", values=User.getAllUsers())
+    if "user" in session:
+        return render_template("view.html", values=User.getAllUsers())
+    else:
+        flash("Please login to get access", "info") 
+        return redirect(url_for("login"))      
 
 @app.route('/GetData')
-#@token_required
+@token_required
 def get_data():
-    token = request.args.get('token')
-    try:
-       jwt.decode(token, app.config['SECRET_KEY'] )
-    except:
-       return jsonify({'error': 'Need a valid token to view this page'}), 401
     return jsonify({'data': Data.get_all_data()})
 
 @app.route('/GetDataByComponent')
-#@token_required
+@token_required
 def get_data_by_component():
-    token = request.args.get('token')
-    try:
-       jwt.decode(token, app.config['SECRET_KEY'] )
-    except:
-       return jsonify({'error': 'Need a valid token to view this page'}), 401
-    componentId = request.args.get('componentId') 
-    componentId = componentId.strip('\"')
+    componentId = request.get_json()['componentId'] 
     return jsonify({'data': Result.get_data_by_id(componentId)})
 
 @app.route('/GetDataByDevice')
-#@token_required
+@token_required
 def get_data_by_device():
-    token = request.args.get('token')
-    try:
-       jwt.decode(token, app.config['SECRET_KEY'] )
-    except:
-       return jsonify({'error': 'Need a valid token to view this page'}), 401
     deviceId = request.args.get('deviceId') 
     return jsonify({'data': Device.get_data_by_id(deviceId)})
 
 @app.route('/inputData', methods=['POST'])
+@token_required
 def add_input():
     input_data = request.get_json()
-    response = ''
+    responseList = ['']
     theModule =['']   
-    if(validateData(input_data,response)):    
+    if(validateData(input_data,responseList)):    
         userInfo,module,data = extractInput(input_data)           
-        if(validateAndReturn_theModule(module, data, theModule, response)):
+        if(validateAndReturn_theModule(module, data, theModule, responseList)):
             timestamp = datetime.datetime.utcnow()    
-            Data.add_data(timestamp, userInfo, data) 
-            theModule[0](timestamp,userInfo,data)                   
-            response = Response("",202,mimetype='application/json')
-        return response
+            Data.add_data(timestamp, userInfo, data)
+            if(module == 'BayesianInference'):
+                Fn_url = "https://apimodules.azurewebsites.net/api/Bayesian?code=HQZFRXrtYy6SZh/0qJ9EamDpCvI36DAa1EAlATKnmWWJmKN8lWJOXw==" 
+                #Fn_url = "http://localhost:7071/api/Bayesian"
+                jsondataStr={"timestamp": timestamp.isoformat(),"userInfo": userInfo,"module":module,"data": data}
+                jsondata = json.dumps(jsondataStr)
+                payload  = jsondata
+                headers = {'Content-Type': 'application/json'}
+                try:
+                    response = requests.request("POST", Fn_url, headers=headers, data = payload,timeout=1)
+                except requests.exceptions.ReadTimeout: 
+                    pass                
+                response = Response("",202,mimetype='application/json')
+            else:
+                theModule[0](timestamp,userInfo,data)
+        return Response(responseList[0],412,mimetype='application/json')
     else:
-        invalidDataObjectErrorMsg = {
-            "error\":\"Invalid data object passed in request\n\"",
-            "helpString\":\"Data passed in similar to this{\"Bin1\": [75000,15418],\"Bin2\": [11100,32605]}"
-            }
-        response = Response(invalidDataObjectErrorMsg, status = 400, mimetype='application/json')
-        return response
+        return Response(responseList[0],412,mimetype='application/json')
 
 
 @app.route('/Create',methods=['PUT'])
+@token_required
 def create():
     name = request.get_json()['name']
     #name = name['name']
     id = uuid4().hex
-    Companies.insert(0,{id,name})
-    print(Companies)
+    Company.insert(0,{id,name})
+    print(Company)
     if(validName(name)):
         #send name id to database
         response = Response(id, status=201,mimetype='application/json')
