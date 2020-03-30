@@ -170,10 +170,15 @@ def add_input():
                     response = requests.request("POST", Fn_url, headers=headers, data = payload,timeout=1)
                 except requests.exceptions.ReadTimeout: 
                     pass                
-                response = Response("",202,mimetype='application/json')
+                return Response("work has started, it might take several minutes.",202,mimetype='application/json')
             else:
-                theModule[0](timestamp,userInfo,data)
-        return Response(responseList[0],412,mimetype='application/json')
+                theModule[0](timestamp,userInfo,data,responseList)
+                if (responseList == ['']):
+                    return Response("work completed successfully",202,mimetype='application/json')
+                else:
+                    return Response(responseList[0],500,mimetype='application/json')
+        else:
+            return Response(responseList[0],412,mimetype='application/json')
     else:
         return Response(responseList[0],412,mimetype='application/json')
 
