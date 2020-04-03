@@ -13,6 +13,7 @@ from BuisnessLayer.Modules import *
 from DatabaseLayer.DataModel import *
 from ApiLayer.Admin import *
 from functools import wraps
+from flask_bootstrap import Bootstrap
 
 import jwt,datetime
 import requests
@@ -26,6 +27,7 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db.init_app(app)
 
 FlaskUUID(app)
+Bootstrap(app)
 
 app.config['SECRET_KEY'] = 'EdrMedeso2020' 
 app.permanent_session_lifetime = datetime.timedelta(minutes=5)
