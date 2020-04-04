@@ -3,6 +3,7 @@
 Login
 {% endblock %}
 {% block content %}
+<div class="container">
     {% with messages = get_flashed_messages() %}
         {% if messages %}  
             {% for msg in messages %}
@@ -11,8 +12,11 @@ Login
         {% endif %}
     {% endwith %}     
 <form action="#" method="POST" style="width: 200px;">
-    <p>&nbsp;<nobr>Name: &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<input type="text" name="nm" /></nobr></p>
-    <p>&nbsp;<nobr>Password: <input type="text" name="pw" /></nobr></p>  
-    <p>&nbsp;<input type="submit" value="submit" /></p>   
+    <p>Name: </p>
+    <p><input type="text" name="nm" /></p>
+    <p>Password: </p>
+    <p><input type="text" name="pw" /></p>  
+    <p><input type="submit" value="submit" /></p>   
 </form>
+</div>
 {% endblock %}
