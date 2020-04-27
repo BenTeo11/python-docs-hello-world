@@ -61,6 +61,7 @@ def login():
         if match:
             session["user"] = username
             flash("Login Succesful!")
+            session['logged_in'] = True
             session.permanent = True             
             return redirect(url_for("user"))
         else:
@@ -76,6 +77,7 @@ def login():
 def logout():
     flash("You have been logged out!", "info") 
     session.pop("user", None)
+    session['logged_in'] = False
     return redirect(url_for("login"))
 
 @app.route('/getToken', methods=['GET'])

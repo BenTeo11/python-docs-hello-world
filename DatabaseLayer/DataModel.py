@@ -217,6 +217,10 @@ class Data(db.Model):
     def delete_data(_timeStamp):
         Data.query.filter_by(timeStamp=_timeStamp).delete()
         db.session.commit()
+        
+    def delete_data_by_id(_componentId):
+        Data.query.filter_by(componentId=_componentId).delete()
+        db.session.commit()          
     
     def __repr__(self):
         data_object ={
@@ -252,6 +256,9 @@ class Result(db.Model):
     
     def get_data_the_lastrows(counts,_componentId):       
         return [Result.json(data) for data in Result.query.filter_by(componentId=_componentId).order_by(desc(Result.timeStamp)).limit(counts).all()] 
+    
+    def get_data_allrows(_componentId):
+        return [Result.json(data) for data in Result.query.filter_by(componentId=_componentId).order_by(desc(Result.timeStamp)).all()] 
     
     def delete_data(_resultTimeStamp):
         Result.query.filter_by(timeStamp=_resultTimeStamp).delete()

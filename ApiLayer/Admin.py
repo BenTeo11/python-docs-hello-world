@@ -32,14 +32,17 @@ def validateAndReturn_theModule(module, data, theModuleObj, response):
                 jsonschema.validate(data_dict, inputData_ref)
             except jsonschema.ValidationError as jerr:
                 response[0]  = str(jerr)
+                print (str(jerr))
                 return False
-            except jsonschema.SchemaError as e:
+            except jsonschema.SchemaError as jerr:
                 response[0]  = str(jerr)
+                print (str(jerr))
                 return False
                       
             cerr = validateContent(module,data)
             if(cerr != ''):
                 response[0] = cerr
+                print (str(cerr))
                 return False
             
             return True
@@ -48,6 +51,7 @@ def validateAndReturn_theModule(module, data, theModuleObj, response):
             "error\":\"The Module selected to use, doesn't exist. Check the module list document.\n\""
             }
         response[0] = invalidDataObjectErrorMsg
+        print (str(jerr))
         return False
 
 def extractInput(inputData):
@@ -66,4 +70,9 @@ def validateContent(func, inputData):
             errMsg = 'number1 is too big, try smaller number'
         else:
             errMsg = ''
+    if (func == 'WeldFat'):
+        pass
+        #if data['fatClass'][0] == 'User defined':
+        #    if len(data['fatClass'])!=7:
+        #        errMsg += 'User defined value - Nfat,fatFact,N0,m0 and Ncutoff are expected for User Defined S-N curves '
     return errMsg

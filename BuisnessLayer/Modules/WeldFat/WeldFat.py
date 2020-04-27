@@ -4,219 +4,248 @@ import uuid
 import datetime
 from DatabaseLayer.DataModel import *
 from BuisnessLayer.Utilities.HelpFunctions import *
-
+from collections import deque, defaultdict
+import rainflow
 from .WeldFat_Pref import *
 from math import *
 
-def WeldFat(timestamp,_componentId, jsonInput): 
+def WeldFat(timestamp,_componentId, json_input): 
+
     """Iterate cycles in the series.
 
     Parameters
     ----------
     timestamp (datetime.datetime): 
     _componentId (string): "e9fafc85-5f4d-422e-8988-6545890f202c"
-    jsonInput (string):  
-        {
-        "destinationModule": "WeldFat",
-        "data": {
-                "ultimateLimit": 400.0, 
-                "Stress_Data": {
-                    "1": [100, 5, 100000], 
-                    "2": [200, 5, 100000000]
-                    }, 
-                "yieldLimit": 200.0, 
-                "fatClass": ["IIW FAT125 steel",,,,,, ]
-                 -> "fatClass": ["User Defined",fat,Nfat,Nc,m1,m2]
-                    fat : stress range at Nfat cycles
-                    Nfat : Number of cycles for defining fat
-                    Nc : Break point between slope m1 and m2
-                    m1 : S-N curve slope for N<Nc
-                    m2 : S-N curve slope for N>Nc
-                "meanStressTheory": "Goodman", 
-                "Method": "nominalFatigue",
-                "stressUnit": "MPa"
-            }
-        }
+    jsonjson_obj (string):  
     Returns
     ------
-    resDict dictionary as json
+    res_dict dictionary as json
     
-    resDict['Cumulative Damage [-]']
-    resDict['Safety factor life [#blocks]']
-    resDict['Equivalent Stress range']
-    resDict['Safety factor stress [-]']
-    resDict['rst'] : Fatigue result per bin as below
-        resDict['rst'][bin]['Life [N]']
-        resDict['rst'][bin]['log10(Life) [N]']
-        resDict['rst'][bin]['Damage per block [-]']
-        resDict['rst'][bin]['Safety factor life [#blocks]']
+    res_dict['cumulative_damage']
+    res_dict['safety_factor_life_per_bin']
+    res_dict['equivalent_stress_range']
+    res_dict['safety_factor_stress']
+    res_dict['rst'] : Fatigue result per bin as below
+        res_dict['rst'][bin]['life']
+        res_dict['rst'][bin]['log10_life']
+        res_dict['rst'][bin]['damage_per_bin']
+        res_dict['rst'][bin]['safety_factor_life_per_bin']
         
     """
-    # read json inputs
-    print(jsonInput)
-    Input        = {} 
-    Input        = json.loads(jsonInput)
-    # Define unit conversion from user units to SI units
-    stressUnit   = Input['stressUnit']
-    SI           = {'mpa':1.0e6,'psi':6894.76,'ksi':6894757.29}
-    convStressSI = SI[stressUnit.lower()]
-    
-    # get S-N Curve Nominal and Linearized Stress from preference file
-    if Input['Method']=='nominalFatigue':
-        fat     = fat_Nom[0]*SI[fat_Nom[1].lower()]
-        fatFact = 1.
-        Nfat    = Nfat_Nom
-        Nc      = Nc_Nom
-        m1      = m1_Nom
-        m2      = m2_Nom
-    else : 
-        print ('error method')
-    # get fatclass parameters
-    fatClass = Input['fatClass'][0]
-    if fatClass == 'User Defined':
-        Nfat     = Input['fatClass'][1]
-        fatFact  = Input['fatClass'][2]
-        N0       = Input['fatClass'][3]
-        m0       = Input['fatClass'][4]
-        Ncutoff  = Input['fatClass'][5]
+    # read json json_objs
+    json_obj        = {} 
+    json_obj        = json.loads(json_input)
+    # Define unit conversion from user units to stress_unit_dict units
+    stress_unit   = json_obj['stress_unit']
+    stress_unit_dict           = {'mpa':1.0e6,'psi':6894.76,'ksi':6894757.29}
+    conv_stress = stress_unit_dict[stress_unit.lower()]
+    # Get S-N Curve definition parameters
+    if "class" not in json_obj["fatigue_class"]:
+        fat_class = "User defined"
+        fat     = json_obj["fatigue_class"]["fat"]*conv_stress
+        n_fat    = json_obj["fatigue_class"]["n_fat"]
+        n_c      = json_obj["fatigue_class"]["n_c"]
+        m_1      = json_obj["fatigue_class"]["m_1"]
+        m_2      = json_obj["fatigue_class"]["m_2"]
     else:
-        N0       = fatClassDict[fatClass]['N0']
-        m0       = fatClassDict[fatClass]['m0']
-        Ncutoff  = fatClassDict[fatClass]['Ncutoff']
-    #get mean stress theory parameter
-    UTS = Input['ultimateLimit']*convStressSI
-    SY  = Input['yieldLimit']*convStressSI
-    if Input['meanStressTheory'] in ['Goodman','Gerber']:
-        Rm = convStressSI*UTS
-        Ry = 0.9*Rm
-    elif Input['meanStressTheory'] == 'Soderberg': 
-        Ry = convStressSI*SY
-    elif Input['meanStressTheory'] == 'None': 
-        if Input['Method'] in ['nominalFatigue', 'hotSpotFatigue']: 
-            Ry = convStressSI*SY
-        else: 
-            Ry = 0.0
+        fat_class = json_obj["fatigue_class"]["class"]
+        fat     = fatClassDict[fat_class]['FAT'][0]*stress_unit_dict[fatClassDict[fat_class]['FAT'][1].lower()]
+        n_fat    = fatClassDict[fat_class]['Nfat']
+        n_c      = fatClassDict[fat_class]['Nc']
+        m_1      = fatClassDict[fat_class]['m1']
+        m_2      = fatClassDict[fat_class]['m2']
+        
+    if "fat_fact" not in json_obj["fatigue_class"]:
+        fat_fact = 1.
+    else:
+        fat_fact = json_obj["fatigue_class"]["fat_fact"]
+        
+    if 'N0' in fatClassDict[fat_class]:
+        n_0      = fatClassDict[fat_class]['N0']
+    else:
+        n_0 = 1
+        
+    if 'm0' in fatClassDict[fat_class]:
+        m_0      = fatClassDict[fat_class]['m0']
+    else:
+        m_0 = 1
+        
+    if 'Ncutoff' in fatClassDict[fat_class]:
+        n_cutoff = fatClassDict[fat_class]['Ncutoff']
+    else:
+        n_cutoff = 1
+    # intermediate parameters
+    log10_sn_1 = log10(fat*fat_fact)+(log10(n_fat)-log10(n_0))/m_1
+    sn_1      = 10**(log10_sn_1)
+    sn_0      = 10**(log10_sn_1+log10(n_0)/m_0)
+    sn_c      = 10**(log10(fat*fat_fact)-(log10(n_c)-log10(n_fat))/m_1)
+    # Get mean stress theory parameter
+    if "mean_stress_theory" in json_obj:
+        mean_stress_theory=json_obj['mean_stress_theory']['theory']  
+        if mean_stress_theory in ['Goodman','Gerber']:
+            UTS = json_obj['mean_stress_theory']['ultimate_limit']*conv_stress
+            r_m = conv_stress*UTS
+            r_y = 0.9*r_m
+        elif mean_stress_theory == 'Soderberg': 
+            SY  = json_obj['mean_stress_theory']['yield_limit']*conv_stress
+            r_y = conv_stress*SY
+        #elif json_obj['mean_stress_theory'] == 'None': 
+        #    if json_obj['Method'] in ['nominalFatigue', 'hotSpotFatigue']: 
+        #        r_y = conv_stress*SY
+        #    else: 
+        #        r_y = 0.0
 
-    # calculate result per bin
-    resDict = {}
-    resDict['Cumulative Damage [-]']        = 0.
-    resDict['Safety factor life [#blocks]'] = 0.
-    resDict['Equivalent Stress range']      = 0.
-    resDict['Safety factor stress [-]']     = 0.
-    resDict['rst']                          = {}
+    # Calculate result per bin
+    res_dict = {}
+    res_dict['cumulative_damage']        = 0.
+    res_dict['safety_factor_life_per_bin'] = 0.
+    res_dict['equivalent_stress_range']      = 0.
+    res_dict['safety_factor_stress']     = 0.
+    res_dict['rst']                          = {}
     
-    for bin in Input['Stress_Data'].keys():
-        # init result dictionary
-        _rst_dic_per_bin                                 = {}
-        _rst_dic_per_bin['Life [N]']                     = 0.0
-        _rst_dic_per_bin['log10(Life) [N]']              = 0.0
-        _rst_dic_per_bin['Damage per block [-]']         = 0.0
-        _rst_dic_per_bin['Safety factor life [#blocks]'] = 0.0
-        # intermediate parameters
-        log10SN1 = log10(fat*fatFact)+(log10(Nfat)-log10(N0))/m1
-        SN1      = 10**(log10SN1)
-        SN0      = 10**(log10SN1+log10(N0)/m0)
-        SNc      = 10**(log10(fat*fatFact)-(log10(Nc)-log10(Nfat))/m1)
-        # calculate SNb
-        cycles   = Input['Stress_Data'][bin][2]
-        if cycles <= N0: 
-            SNb = 10**(log10SN1+(log10(N0)-log10(cycles))/m0)
-        elif cycles <= Nc: 
-            SNb = 10**(log10(SNc)+(log10(Nc)-log10(cycles))/m1)
-        else: 
-            SNb = 10**(log10(SNc)-(log10(cycles)-log10(Nc))/m2)
+    if 'stress_data' not in json_obj.keys() and 'serie_data' in json_obj.keys():
+        series=json_obj['serie_data']["series"]
+        if 'nbins' in json_obj['serie_data'].keys(): 
+            nbins = json_obj['serie_data']['nbins']
+            max_range = max(series) - min(series)
+            if 'maxrange' in json_obj['serie_data']:
+                my_max_range =json_obj['serie_data']['maxrange']
+                max_range = my_max_range
+                if max_range < my_max_range:#add error message?
+                    pass
+                else:
+                    print ("serie max range larger than given max range") 
+            binsize = max_range / nbins
+            counts_ix = defaultdict(int)
+            for i in range(nbins):
+                counts_ix[i] = 0
+            # Apply mean stress theory before assigning to bin
+            for low, high, mult in rainflow.extract_cycles(series):
+                bin_index = int(abs(high - low) / binsize)
+                sm=0.5 * (high + low)
+                sa=high - low
+                if "mean_stress_theory" in json_obj: #does not handle sn_0
+                    sa=apply_mean_stress_theory(mean_stress_theory,sm,sa,sn_0,r_m,r_y)
+                bin_index = int(abs(sa) / binsize)
+                # handle possibility of range equaliing max range
+                if bin_index == nbins:
+                    bin_index = nbins - 1
+                counts_ix[bin_index] += mult
+            # save count data to dictionary where key is the range
+            counts = dict(((k+1)*binsize,v) for k,v in counts_ix.items())
+            cycles_list=sorted(counts.items())
+            #print (cycles_list)
+            json_obj['stress_data']={}
+            for i in range(len(cycles_list)):
+                json_obj['stress_data'][i]={'sa':cycles_list[i][0],'cycles':cycles_list[i][1],'sm':0.}
+            if "mean_stress_theory" in json_obj:
+                del json_obj["mean_stress_theory"]
+        else:
+            json_obj['stress_data']={}
+            for i,(low, high, mult) in enumerate(rainflow.extract_cycles(series)):
+                mean=0.5 * (high + low)
+                rng=high - low
+                json_obj['stress_data'][i]={'sa':rng,'cycles':mult,'sm':mean}
+                
+    #print(json_obj['stress_data'])
 
-        # mean stress theory
-        warningUTS = False
-        warningYield = False
-        sm = Input['Stress_Data'][bin][0]*convStressSI
-        sa = Input['Stress_Data'][bin][1]*convStressSI
-        if Input['meanStressTheory'] == 'Goodman':
-            if 0.0 < sm:
-                sa /= 1-sa/Rm
-            elif abs(sm)>= Rm:
-                sa = 1.01*SN0
-                warningUTS = True
-        elif Input['meanStressTheory'] == 'Gerber':
-            if abs(sm)<Rm:
-                sa /= (1-sa)/Rm**2
-            elif sm>= Rm:
-                sa>=1.01*SN0
-                warningUTS = True
-        elif Input['meanStressTheory'] == 'Soderberg': 
-            if 0.0 < sm < Ry: 
-                sa /= (1-sa/Ry)
-            elif abs(sm) >= Ry:
-                sa = 1.01*SN0
-                warningYield = True
-        else:
-            pass
-            
-        warningRangeNom = False
-        warningRangeHS = False
-        #warningStressMax = False
-        if Input['Method'] =='nominalFatigue':
-            if Input['Stress_Data'][bin][1]*convStressSI > 1.5*Ry: 
-                warningRangeNom = True
-                #if resDict['Stress max'][n] > Ry: warningStressMax = True
-                #if resDict['Stress min'][n] < -Ry: warningStressMax = True
-        elif Input['Method'] == 'hotSpotFatigue':
-            if Input['Stress_Data'][bin][1]*convStressSI > 2.0*Ry: 
-                warningRangeHS = True
-                #if resDict['Stress max'][n] > Ry: warningStressMax = True
-                #if resDict['Stress min'][n] < -Ry: warningStressMax = True
-                
-                
+    for bin in json_obj['stress_data'].keys():
+        cycles   = json_obj['stress_data'][bin]["cycles"]
+        if cycles !=0.:
+            # init result dictionary
+            _rst_dic_per_bin                                 = {}
+            _rst_dic_per_bin['life']                     = 0.0
+            _rst_dic_per_bin['log10_life']              = 0.0
+            _rst_dic_per_bin['damage_per_bin']         = 0.0
+            _rst_dic_per_bin['safety_factor_life_per_bin'] = 0.0
+            # calculate s_nb
+            if cycles <= n_0: 
+                s_nb = 10**(log10_sn_1+(log10(n_0)-log10(cycles))/m_0)
+            elif cycles <= n_c: 
+                s_nb = 10**(log10(sn_c)+(log10(n_c)-log10(cycles))/m_1)
+            else: 
+                s_nb = 10**(log10(sn_c)-(log10(cycles)-log10(n_c))/m_2)
+
+            # mean stress theory
+            sa = json_obj['stress_data'][bin]["sa"]*conv_stress
+            if "mean_stress_theory" in json_obj and "sm" in json_obj['stress_data'][bin]:
+                mean_stress_theory=json_obj['mean_stress_theory']['theory']
+                sm = json_obj['stress_data'][bin]["sm"]*conv_stress
+                sa=apply_mean_stress_theory(mean_stress_theory,sm,sa,sn_0,r_m,r_y)
+
         # Calculate life and store result
-        if sa > SN0:
-            _rst_dic_per_bin['log10(Life) [N]']              = -1.0
-            _rst_dic_per_bin['Life [N]']                     = 0.0
-            _rst_dic_per_bin['Damage per block [-]']         = 100.0
-            _rst_dic_per_bin['Safety factor life [#blocks]'] = 0.0
-        elif sa> SN1:
-            _rst_dic_per_bin['log10(Life) [N]']              = log10(N0) - m0*(log10(sa)-log10SN1)
-            _rst_dic_per_bin['Life [N]']                     = 10**_rst_dic_per_bin['log10(Life) [N]']
-        elif sa > SNc:
-            _rst_dic_per_bin['log10(Life) [N]']              = log10(Nc) - m1*(log10(sa)-log10(SNc))
-            _rst_dic_per_bin['Life [N]']                     = 10**_rst_dic_per_bin['log10(Life) [N]']
+        if sa > sn_0:
+            _rst_dic_per_bin['log10_life']              = -1.0
+            _rst_dic_per_bin['life']                     = 0.0
+            _rst_dic_per_bin['damage_per_bin']         = 100.0
+            _rst_dic_per_bin['safety_factor_life_per_bin'] = 0.0
+        elif sa> sn_1:
+            _rst_dic_per_bin['log10_life']              = log10(n_0) - m_0*(log10(sa)-log10_sn_1)
+            _rst_dic_per_bin['life']                     = 10**_rst_dic_per_bin['log10_life']
+        elif sa > sn_c:
+            _rst_dic_per_bin['log10_life']              = log10(n_c) - m_1*(log10(sa)-log10(sn_c))
+            _rst_dic_per_bin['life']                     = 10**_rst_dic_per_bin['log10_life']
         elif sa > 0.0:
-            _rst_dic_per_bin['log10(Life) [N]']              = min(log10(Ncutoff),log10(Nc) + m2*(log10(SNc) - log10(sa)))
-            _rst_dic_per_bin['Life [N]']                     = 10**_rst_dic_per_bin['log10(Life) [N]']
+            _rst_dic_per_bin['log10_life']              = min(log10(n_cutoff),log10(n_c) + m_2*(log10(sn_c) - log10(sa)))
+            _rst_dic_per_bin['life']                     = 10**_rst_dic_per_bin['log10_life']
         else:
-            _rst_dic_per_bin['log10(Life) [N]']              = log10(Ncutoff)
-            _rst_dic_per_bin['Life [N]']                     = Ncutoff
-        if _rst_dic_per_bin['Life [N]']> 0: 
-            _rst_dic_per_bin['Damage per block [-]']         = cycles/_rst_dic_per_bin['Life [N]']
-            _rst_dic_per_bin['Safety factor life [#blocks]'] = 1/_rst_dic_per_bin['Damage per block [-]']
-        _rst_dic_per_bin['Safety factor stress [-]']         = min(100.0,SNb/max(1,sa))
+            _rst_dic_per_bin['log10_life']              = log10(n_cutoff)
+            _rst_dic_per_bin['life']                     = n_cutoff
+        if _rst_dic_per_bin['life']> 0: 
+            _rst_dic_per_bin['damage_per_bin']         = cycles/_rst_dic_per_bin['life']
+            if _rst_dic_per_bin['damage_per_bin']!=0.:
+                _rst_dic_per_bin['safety_factor_life_per_bin'] = 1/_rst_dic_per_bin['damage_per_bin']
+            else:
+                _rst_dic_per_bin['safety_factor_life_per_bin'] = 1.
+        _rst_dic_per_bin['safety_factor_stress']         = min(100.0,s_nb/max(1,sa))
         # store results
-        resDict['rst'][bin]=_rst_dic_per_bin
+        res_dict['rst'][bin]=_rst_dic_per_bin
 
     #Cumulated Damage  
-
     cum_damage = 0.
-    for bin in Input['Stress_Data'].keys():
-        cum_damage += resDict['rst'][bin]['Damage per block [-]']
-    resDict['Cumulative Damage [-]'] = cum_damage
+    for bin in json_obj['stress_data'].keys():
+        cum_damage += res_dict['rst'][bin]['damage_per_bin']
+    res_dict['cumulative_damage'] = cum_damage
     if cum_damage > 1e-5:
-        resDict['Safety factor life [#blocks]'] = 1.0/cum_damage
-        NSeqv                                   = cycles/cum_damage
+        res_dict['safety_factor_life_per_bin'] = 1.0/cum_damage
+        n_seqv                                   = cycles/cum_damage
     else:
-        resDict['Safety factor life [#blocks]'] = 1e5
-        NSeqv = Ncutoff
+        res_dict['safety_factor_life_per_bin'] = 1e5
+        n_seqv = n_cutoff
 
-    if NSeqv <= N0: 
-        Seqv                                    = 10**(log10SN1+(log10(N0)-log10(NSeqv))/m0)
-    elif NSeqv <= Nc: 
-        Seqv                                    = 10**(log10(SNc)+(log10(Nc)-log10(NSeqv))/m1)
-    elif NSeqv < Ncutoff: 
-        Seqv                                    = 10**(log10(SNc)-(log10(NSeqv)-log10(Nc))/m2)
+    if n_seqv <= n_0: 
+        s_eqv                                    = 10**(log10_sn_1+(log10(n_0)-log10(n_seqv))/m_0)
+    elif n_seqv <= n_c: 
+        s_eqv                                    = 10**(log10(sn_c)+(log10(n_c)-log10(n_seqv))/m_1)
+    elif n_seqv < n_cutoff: 
+        s_eqv                                    = 10**(log10(sn_c)-(log10(n_seqv)-log10(n_c))/m_2)
     else: 
-        Seqv                                    = SNb/100.0
-    resDict['Equivalent Stress range']  = Seqv
-    resDict['Safety factor stress [-]'] = min(100.0,SNb/Seqv)
-
+        s_eqv                                    = s_nb/100.0
+    res_dict['equivalent_stress_range']  = s_eqv
+    res_dict['safety_factor_stress'] = min(100.0,s_nb/s_eqv)
     #insert the result to the 'Result' database
-    data = formatTheResultForDB(resDict)
+    data = formatTheResultForDB(res_dict)
     #_resultTimeStamp = datetime.datetime.utcnow()
     Result.add_data(timestamp, datetime.datetime.utcnow() , _componentId, data)
+
+
+def apply_mean_stress_theory(mean_stress_theory,sm,sa,sn_0,r_m,r_y):
+    if mean_stress_theory == 'Goodman':
+            if 0.0 < sm:
+                sa /= 1-sa/r_m
+            elif abs(sm)>= r_m:
+                sa = 1.01*sn_0 
+    elif mean_stress_theory == 'Gerber':
+            if abs(sm)<r_m:
+                sa /= (1-sa)/r_m**2
+            elif sm>= r_m:
+                sa>=1.01*sn_0
+    elif mean_stress_theory == 'Soderberg': 
+            if 0.0 < sm < r_y: 
+                sa /= (1-sa/r_y)
+            elif abs(sm) >= r_y:
+                sa = 1.01*sn_0
+    else:
+            pass
+    return sa
